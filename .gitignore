@@ -218,3 +218,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# data never goes in Git; each day has a download script instead
+data/
+*.tif
+*.nc
+*.gpkg
+*.parquet
+.Rproj.user/
+.env

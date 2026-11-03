@@ -1,0 +1,40 @@
+[project]
+name = "thirty-days-geoai"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Silas Mwandikwa", email = "mwandikwasilas68@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+thirty-days-geoai = "thirty_days_geoai:main"
+
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.7.0",
+    "pytest>=9.2.0",
+    "ruff>=0.17.3",
+]
+
+[tool.ruff]
+line-length = 100
+exclude = [
+    "renv",
+    ".venv",
+    ".git",
+    "__pycache__",
+]
+
+[tool.ruff.lint]
+# E/F: errors and pyflakes, I: import order, B: likely bugs, UP: modern syntax
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"*.ipynb" = ["E402"]
