@@ -108,9 +108,7 @@ renv::restore()           # rebuild from renv.lock
 `docs:` documentation · `style:` formatting only · `refactor:` restructure, no behaviour
 change · `test:` tests · `chore:` tooling and setup
 
-## What I learned
-
-_My answers to the check questions, in my own words._
+## Reflections
 
 1. What happens when someone clones the repo and runs `uv sync`?
 2. `pyproject.toml` vs `uv.lock`, and why committing only the first is risky
