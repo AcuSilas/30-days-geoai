@@ -29,4 +29,3 @@ jobs:
           lints <- lintr::lint_dir(".")
           print(lints)
           quit(status = as.integer(length(lints) > 0))
-          
