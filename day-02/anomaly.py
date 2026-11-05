@@ -33,16 +33,20 @@ def monthly_climatology(
 
 
 def standardized_anomaly(
-    pr: xr.DataArray, clim_mean: xr.DataArray, clim_std: xr.DataArray, min_std: float = 1.0
+    pr: xr.DataArray,
+    clim_mean: xr.DataArray,
+    clim_std: xr.DataArray,
+    min_std: float = 1.0,
+    min_mean: float = 10.0,
 ) -> xr.DataArray:
     """(rainfall - monthly mean) / monthly std, for every pixel and month.
-
-    Where a month is almost always dry (std < min_std mm), the result is NaN:
-    dividing by a tiny std would turn 3 mm of rain into a record-breaking anomaly.
+    NaN where the month is normally near-dry (mean < min_mean mm) or barely
+    varies (std < min_std mm): there, a few mm of rain gives a huge but
+    meaningless z-score.
     """
-    safe_std = clim_std.where(clim_std >= min_std)
+    valid = (clim_std >= min_std) & (clim_mean >= min_mean)
     anom = pr.groupby("time.month") - clim_mean
-    z = anom.groupby("time.month") / safe_std
+    z = anom.groupby("time.month") / clim_std.where(valid)
     return z.drop_vars("month").rename("z_anomaly")
 
 
@@ -66,3 +70,17 @@ def county_means(
         raise ValueError(f"counties with no pixel centres: {empty}")
     weights = mask * np.cos(np.deg2rad(da.lat))
     return da.weighted(weights).mean(("lat", "lon"))
+
+def seasonal_anomaly(
+    pr: xr.DataArray, months: list[int], start: int = 1991, end: int = 2020
+) -> xr.DataArray:
+    """Standardized anomaly of seasonal rainfall totals, one value per pixel per year.
+
+    Only for seasons inside one calendar year (e.g. MAM, OND). A season with any
+    missing month is NaN rather than an undercount.
+    """
+    season = pr.sel(time=pr.time.dt.month.isin(months))
+    totals = season.groupby("time.year").sum("time", min_count=len(months))
+    base = totals.sel(year=slice(start, end))
+    z = (totals - base.mean("year")) / base.std("year")
+    return z.rename("z_season")

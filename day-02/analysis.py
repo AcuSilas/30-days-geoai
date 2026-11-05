@@ -75,22 +75,48 @@ fig.suptitle("Kenya county rainfall anomalies, last 12 months (CHIRPS v2)")
 fig.savefig(FIGS / "county_anomalies_last12.png", dpi=200)
 plt.show()
 
-# %% Validation: do known droughts and floods show up?
+# %% Validation, by season: do known droughts and floods show up?
 pick = ["Mandera", "Wajir", "Marsabit"]
-ts = df[df["county"].isin(pick) & (df["time"] >= "2019-01")]
-ts = ts.pivot(index="time", columns="county", values="z_anomaly")
-smooth = ts.rolling(3, min_periods=2).mean()
-
-fig, ax = plt.subplots(figsize=(11, 4))
-for county in smooth.columns:
-    ax.plot(smooth.index, smooth[county], label=county)
-ax.axhline(0, color="black", linewidth=0.8)
-ax.axvspan(
-    pd.Timestamp("2020-10-01"), pd.Timestamp("2022-12-31"),
-    color="tan", alpha=0.25, label="2020-22 drought",
-)
-ax.set_ylabel("3-month mean z")
-ax.set_title("Rainfall anomalies in north-eastern Kenya")
-ax.legend()
+seasons = {
+    "MAM long rains": ([3, 4, 5], (2020.5, 2022.5)),  # failed: 2021, 2022
+    "OND short rains": ([10, 11, 12], (2019.5, 2022.5)),  # failed: 2020-2022
+}
+fig, axes = plt.subplots(2, 1, figsize=(11, 7), sharex=True, constrained_layout=True)
+for ax, (label, (months, drought)) in zip(axes, seasons.items(), strict=True):
+    zs = an.county_means(an.seasonal_anomaly(pr, months), counties)
+    table = zs.to_dataframe(name="z").reset_index()
+    table = table.pivot(index="year", columns="names", values="z")
+    table.loc[2019:, pick].plot(ax=ax, marker="o")
+    ax.axhline(0, color="black", linewidth=0.8)
+    ax.axvspan(*drought, color="tan", alpha=0.25, label="2020-22 drought")
+    ax.set_title(label)
+    ax.set_ylabel("Seasonal z")
+    ax.legend(loc="upper left")
+fig.suptitle("Seasonal rainfall anomalies in north-eastern Kenya (vs 1991-2020)")
 fig.savefig(FIGS / "validation_northeast.png", dpi=200, bbox_inches="tight")
 plt.show()
+
+# %% Diagnose: real extremes or dry-month artefacts?
+def county_table(da, name):
+    return an.county_means(da, counties).to_dataframe(name=name).reset_index()
+
+rain = county_table(pr, "rain_mm")
+rain["month"] = rain["time"].dt.month
+normal = county_table(clim_mean, "normal_mm")[["month", "names", "normal_mm"]]
+spread = county_table(clim_std, "std_mm")[["month", "names", "std_mm"]]
+
+diag = rain.merge(normal, on=["month", "names"]).merge(spread, on=["month", "names"])
+diag["pct_of_normal"] = 100 * diag["rain_mm"] / diag["normal_mm"]
+suspects = diag["names"].isin(["Wajir", "Mandera", "Turkana"]) & diag["time"].isin(
+    pd.to_datetime(["2026-02-01", "2026-03-01", "2026-08-01", "2026-09-01"])
+)
+print(diag[suspects].round(1).to_string(index=False))
+
+top = pr.where(pr >= 1000, drop=True).stack(p=("time", "lat", "lon")).dropna("p")
+print(diag[suspects].to_string(index=False, float_format="%.1f"))
+# %% How dry can z even go? Floor = z for a season with zero rain
+season = pr.sel(time=pr.time.dt.month.isin([10, 11, 12]))
+totals = season.groupby("time.year").sum("time", min_count=3).sel(year=slice(1991, 2020))
+floor = an.county_means(-totals.mean("year") / totals.std("year"), counties)
+floor_table = floor.to_dataframe(name="z_floor").reset_index()
+print(floor_table[floor_table["names"].isin(pick)][["names", "z_floor"]].round(2))
