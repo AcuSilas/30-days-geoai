@@ -1,0 +1,5 @@
+task,method,seconds
+county counts,DuckDB SQL,0.6072478999994928
+county counts,geopandas sjoin,0.10580310000295867
+nearest neighbour,DuckDB brute force,2.5259521000007226
+nearest neighbour,SciPy KD-tree,0.007680400001845555
