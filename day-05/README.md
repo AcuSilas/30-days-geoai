@@ -115,9 +115,7 @@ da.rio.to_raster("out.tif", driver="COG", blocksize=128, compress="deflate")
 | 0.2–0.5 | Grassland, shrubs, growing crops |
 | 0.6–0.9 | Dense, healthy vegetation |
 
-## What I learned
-
-_My answers to the check questions, in my own words._
+## Reflections
 
 1. The STAC hierarchy, with today's data as the example
 2. The two COG features that make window reads possible
