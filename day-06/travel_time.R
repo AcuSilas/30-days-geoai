@@ -17,7 +17,7 @@ kenya_bbox <- matrix(
 
 thresholds <- c(30, 60, 120)
 time_breaks <- c(0, 15, 30, 60, 120, 240, Inf)
-time_labels <- c("< 15", "15-30", "30-60", "1-2 h", "2-4 h", "> 4 h")
+time_labels <- c("< 15 m", "15-30 m", "30-60 m", "1-2 h", "2-4 h", "> 4 h")
 
 # Download friction surfaces from Malaria Atlas Project
 get_surface <- function(dataset_id, file) {
