@@ -11,13 +11,12 @@ fig_dir <- file.path(out_dir, "figures")
 dir.create(data_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
 
-kenya_crs <- "EPSG:21037"
+kenya_crs <- "EPSG:21037" # metres, for blocks and distances
 k_folds <- 5
 n_repeats <- 5
 block_sizes_km <- c(10, 25, 50, 100, 200)
 
-# Step 1: PfPR surveys from MAP
-
+# Step 1: PfPR surveys from MAP, standardised to ages 2-10
 pr_file <- file.path(data_dir, "kenya_pfpr.csv")
 if (!file.exists(pr_file)) {
   raw <- malariaAtlas::getPR(country = "Kenya", species = "Pf")
@@ -29,26 +28,22 @@ counties <- sf::st_read("data/day-02/kenya_adm1.geojson", quiet = TRUE) |>
 
 surveys <- readr::read_csv(pr_file, show_col_types = FALSE) |>
   dplyr::filter(
-    !is.na(latitude), !is.na(longitude),
+    !is.na(latitude), !is.na(longitude), # DHS points come without coordinates
     !is.na(lower_age), !is.na(upper_age),
     examined >= 10, year_start >= 2005
   ) |>
   dplyr::mutate(
     pfpr = malariaAtlas::convertPrevalence(positive / examined, lower_age, upper_age, 2, 10)
   ) |>
-  sf::st_as_sf(
-    coords = c("longitude", "latitude"), crs = 4326, remove = FALSE) |>
+  sf::st_as_sf(coords = c("longitude", "latitude"), crs = 4326, remove = FALSE) |>
   sf::st_filter(counties)
-
 message(sprintf(
-  "%d surveys at %d distinct location, %d to %d",
+  "%d surveys at %d distinct locations, %d to %d",
   nrow(surveys), dplyr::n_distinct(surveys$longitude, surveys$latitude),
   min(surveys$year_start), max(surveys$year_start)
 ))
 
-
 # Step 2: Covariates at every survey location
-
 elevation_file <- file.path(data_dir, "elevation_ken.tif")
 if (!file.exists(elevation_file)) {
   elevation <- geodata::elevation_30s(country = "KEN", path = data_dir)
@@ -77,9 +72,12 @@ features <- c(names(covariates), "year_start")
 surveys <- dplyr::filter(surveys, dplyr::if_all(dplyr::all_of(features), \(x) !is.na(x)))
 
 survey_data <- sf::st_drop_geometry(surveys)
-xy <- sf::st_coordinates(sf::st_transform(surveys, kenya_crs))
+xy <- sf::st_coordinates(sf::st_transform(surveys, kenya_crs)) # metres
 message(nrow(survey_data), " surveys with every covariate")
-
+readr::write_csv(
+  dplyr::mutate(survey_data, x_m = xy[, 1], y_m = xy[, 2]),
+  file.path(data_dir, "model_data.csv")
+)
 
 # Step 3: One model, many ways to test it
 fit_predict <- function(train, test) {
@@ -110,7 +108,6 @@ block_folds <- function(size_km) {
   fold_of_block[match(block, blocks)]
 }
 
-
 # Step 4: Random vs spatial block cross-validation
 results <- list()
 for (r in seq_len(n_repeats)) {
@@ -131,8 +128,7 @@ summary_table <- results |>
 print(summary_table)
 readr::write_csv(results, file.path(out_dir, "cv_results.csv"))
 
-
-# Step 5: Figure 1: estimated error
+# Step 5: Figure 1: estimated error grows when tests are far from training data
 p1 <- ggplot2::ggplot(results, ggplot2::aes(x = factor(block_km), y = rmse)) +
   ggplot2::geom_point(
     colour = ahadi[["gray_blue"]], alpha = 0.6, size = 2,
@@ -145,15 +141,14 @@ p1 <- ggplot2::ggplot(results, ggplot2::aes(x = factor(block_km), y = rmse)) +
   ggplot2::scale_x_discrete(labels = c("Random", paste(block_sizes_km, "km"))) +
   ggplot2::labs(
     title = "Cross-validated error of a PfPR model",
-    subtitle = "By how surveys are split.",
+    subtitle = "By how surveys are split. 5 repeats each.",
     x = "Cross-validation: random folds, or spatial blocks of this size",
     y = "RMSE (PfPR 2-10)"
   ) +
   theme_ahadi()
 ggplot2::ggsave(file.path(fig_dir, "rmse_by_block_size.png"), p1, width = 9, height = 5, dpi = 200)
 
-
-# Step 6: Figure 2: Compare tests vs the real prediction task?
+# Step 6: Figure 2: do the tests look like the real prediction task?
 nearest_km <- function(from, to) {
   d2 <- outer(from[, 1], to[, 1], "-")^2 + outer(from[, 2], to[, 2], "-")^2
   sqrt(apply(d2, 1, min)) / 1000
@@ -191,8 +186,7 @@ p2 <- ggplot2::ggplot(distances, ggplot2::aes(x = km + 0.1, colour = set)) +
   ggplot2::labs(
     title = "Distance from each point to the nearest training survey",
     subtitle = "(cumulative share)",
-    x = "Distance to nearest training survey (km, log scale)",
-    y = "Share of points"
+    x = "Distance to nearest training survey (km, log scale)", y = "Share of points"
   ) +
   theme_ahadi()
 ggplot2::ggsave(
